@@ -1,0 +1,29 @@
+# S6: Agent Workflow — Realistic Pipeline
+# Simulates multi-step agent workflow with dependencies
+providers:
+  fetch:
+    mode: subprocess
+    command: [python, -m, src.providers.controlled_delay]
+    env:
+      BENCH_CALL_DELAY_MS: "200"
+      BENCH_NUM_TOOLS: "1"
+      BENCH_TOOL_PREFIX: "fetch"
+      BENCH_PAYLOAD_SIZE: "1024"
+
+  search:
+    mode: subprocess
+    command: [python, -m, src.providers.controlled_delay]
+    env:
+      BENCH_CALL_DELAY_MS: "300"
+      BENCH_NUM_TOOLS: "1"
+      BENCH_TOOL_PREFIX: "search"
+      BENCH_PAYLOAD_SIZE: "512"
+
+  filesystem:
+    mode: subprocess
+    command: [python, -m, src.providers.controlled_delay]
+    env:
+      BENCH_CALL_DELAY_MS: "50"
+      BENCH_NUM_TOOLS: "1"
+      BENCH_TOOL_PREFIX: "fs"
+      BENCH_PAYLOAD_SIZE: "128"

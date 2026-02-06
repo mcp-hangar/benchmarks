@@ -1,0 +1,1 @@
+"""MCP Hangar Benchmark Suite."""

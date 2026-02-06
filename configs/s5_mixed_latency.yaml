@@ -1,0 +1,26 @@
+# S5: Mixed Latency — Head-of-Line Blocking
+# Demonstrates sequential bottleneck from slowest call
+providers:
+  fast:
+    mode: subprocess
+    command: [python, -m, src.providers.controlled_delay]
+    env:
+      BENCH_CALL_DELAY_MS: "10"
+      BENCH_NUM_TOOLS: "5"
+      BENCH_TOOL_PREFIX: "fast"
+
+  medium:
+    mode: subprocess
+    command: [python, -m, src.providers.controlled_delay]
+    env:
+      BENCH_CALL_DELAY_MS: "100"
+      BENCH_NUM_TOOLS: "3"
+      BENCH_TOOL_PREFIX: "medium"
+
+  slow:
+    mode: subprocess
+    command: [python, -m, src.providers.controlled_delay]
+    env:
+      BENCH_CALL_DELAY_MS: "500"
+      BENCH_NUM_TOOLS: "1"
+      BENCH_TOOL_PREFIX: "slow"
