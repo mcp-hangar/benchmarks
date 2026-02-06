@@ -1,0 +1,42 @@
+# S3: Multi-Provider Fan-out
+# Parallel calls across providers with different latencies
+providers:
+  provider_50ms:
+    mode: subprocess
+    command: [python, -m, src.providers.controlled_delay]
+    env:
+      BENCH_CALL_DELAY_MS: "50"
+      BENCH_NUM_TOOLS: "1"
+      BENCH_TOOL_PREFIX: "p50"
+
+  provider_100ms:
+    mode: subprocess
+    command: [python, -m, src.providers.controlled_delay]
+    env:
+      BENCH_CALL_DELAY_MS: "100"
+      BENCH_NUM_TOOLS: "1"
+      BENCH_TOOL_PREFIX: "p100"
+
+  provider_200ms:
+    mode: subprocess
+    command: [python, -m, src.providers.controlled_delay]
+    env:
+      BENCH_CALL_DELAY_MS: "200"
+      BENCH_NUM_TOOLS: "1"
+      BENCH_TOOL_PREFIX: "p200"
+
+  provider_300ms:
+    mode: subprocess
+    command: [python, -m, src.providers.controlled_delay]
+    env:
+      BENCH_CALL_DELAY_MS: "300"
+      BENCH_NUM_TOOLS: "1"
+      BENCH_TOOL_PREFIX: "p300"
+
+  provider_500ms:
+    mode: subprocess
+    command: [python, -m, src.providers.controlled_delay]
+    env:
+      BENCH_CALL_DELAY_MS: "500"
+      BENCH_NUM_TOOLS: "1"
+      BENCH_TOOL_PREFIX: "p500"

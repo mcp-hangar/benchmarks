@@ -1,0 +1,12 @@
+# S2: Fan-out — Single Provider, N Parallel Tools
+# Tests parallel speedup with multiple tools on one provider
+providers:
+  fanout:
+    mode: subprocess
+    command: [python, -m, src.providers.controlled_delay]
+    env:
+      BENCH_CALL_DELAY_MS: "100"
+      BENCH_STARTUP_DELAY_MS: "0"
+      BENCH_NUM_TOOLS: "20"
+      BENCH_TOOL_PREFIX: "fanout"
+      BENCH_PAYLOAD_SIZE: "256"

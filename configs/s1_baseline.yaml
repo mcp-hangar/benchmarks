@@ -1,0 +1,12 @@
+# S1: Baseline — Single Provider, Serial Calls
+# Measures per-call overhead of Hangar vs direct MCP calls
+providers:
+  baseline:
+    mode: subprocess
+    command: [python, -m, src.providers.controlled_delay]
+    env:
+      BENCH_CALL_DELAY_MS: "100"
+      BENCH_STARTUP_DELAY_MS: "0"
+      BENCH_NUM_TOOLS: "1"
+      BENCH_TOOL_PREFIX: "baseline"
+      BENCH_PAYLOAD_SIZE: "256"

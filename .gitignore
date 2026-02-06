@@ -1,0 +1,26 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.venv/
+*.egg
+.uv/
+uv.lock
+
+# Results are tracked, but ignore temp files
+results/raw/*.tmp
+results/charts/*.tmp
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Hangar auto-created data
+data/
+
+# OS
+.DS_Store
+Thumbs.db

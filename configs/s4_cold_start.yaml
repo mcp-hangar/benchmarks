@@ -1,0 +1,12 @@
+# S4: Cold Start Deduplication
+# Tests single-flight cold start optimization
+providers:
+  cold_provider:
+    mode: subprocess
+    command: [python, -m, src.providers.controlled_delay]
+    env:
+      BENCH_CALL_DELAY_MS: "50"
+      BENCH_STARTUP_DELAY_MS: "500"
+      BENCH_NUM_TOOLS: "1"
+      BENCH_TOOL_PREFIX: "cold"
+      BENCH_PAYLOAD_SIZE: "256"
