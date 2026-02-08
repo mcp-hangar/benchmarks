@@ -432,24 +432,23 @@ def print_executive_summary(df: pd.DataFrame) -> None:
     for row in summary_rows:
         table.add_row(*row)
 
-    # Framework overhead summary
-    s1 = df[df["scenario"] == "s1_baseline"]
-    seq = s1[s1["baseline"] == "sequential"]
-    hangar = s1[s1["baseline"] == "hangar_sequential"]
-    if not seq.empty and not hangar.empty:
-        # Average per-call overhead across all delay configurations
-        seq_total = seq["mean_ms"].mean()
-        hangar_total = hangar["mean_ms"].mean()
-        overhead = hangar_total - seq_total
-        num_calls = seq.iloc[0]["num_calls"] if "num_calls" in seq.columns else 50
-        per_call = overhead / num_calls if num_calls > 0 else overhead
+    # Framework overhead summary — derived from the detailed overhead table
+    overheads = compute_overhead(df)
+    if not overheads.empty:
+        pcts = overheads["overhead_pct"]
+        min_pct = pcts.min()
+        max_pct = pcts.max()
+        mean_pct = pcts.mean()
+
+        range_str = f"{min_pct:+.1f}% to {max_pct:+.1f}%"
+        mean_str = f"~{mean_pct:+.1f}%"
 
         table.add_row("", "", "", "")
         table.add_row(
             "Framework overhead",
             "",
-            f"~{abs(per_call):.1f}ms/call",
-            "~0%" if abs(per_call) < 1 else f"+{per_call:.0f}%"
+            range_str,
+            mean_str,
         )
 
     console.print()
