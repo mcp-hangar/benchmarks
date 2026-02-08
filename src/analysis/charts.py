@@ -15,7 +15,7 @@ import matplotlib
 matplotlib.use("Agg")  # Non-interactive backend
 
 import matplotlib.pyplot as plt
-import matplotlib.ticker as ticker
+import matplotlib.patches as mpatches
 import numpy as np
 import pandas as pd
 import seaborn as sns
@@ -23,7 +23,6 @@ import seaborn as sns
 from src.analysis.stats import (
     load_results,
     results_to_dataframe,
-    compute_speedups,
 )
 
 # --- Style Configuration ---
@@ -42,28 +41,34 @@ BASELINE_LABELS = {
     "direct_parallel": "Direct Parallel",
     "hangar_parallel": "Hangar Parallel",
     "hangar_sequential": "Hangar Sequential",
-    "workflow_parallel": "Workflow Parallel",
+    "workflow_parallel": "Parallel Workflow",
 }
+
+# Figure sizes
+FIGSIZE_WIDE = (12, 6)
+FIGSIZE_GANTT = (14, 8)
+FIGSIZE_SQUARE = (10, 8)
 
 
 def _setup_style() -> None:
     """Configure matplotlib/seaborn style for publication quality."""
     sns.set_theme(style="whitegrid")
-    plt.rcParams.update(
-        {
-            "font.size": 12,
-            "axes.titlesize": 14,
-            "axes.labelsize": 12,
-            "xtick.labelsize": 10,
-            "ytick.labelsize": 10,
-            "legend.fontsize": 10,
-            "figure.figsize": (10, 6),
-            "figure.dpi": 150,
-            "savefig.dpi": 300,
-            "axes.grid": True,
-            "grid.alpha": 0.3,
-        }
-    )
+    plt.rcParams.update({
+        "font.family": "sans-serif",
+        "font.sans-serif": ["Inter", "Helvetica Neue", "Arial", "DejaVu Sans"],
+        "font.size": 11,
+        "axes.titlesize": 14,
+        "axes.titleweight": "bold",
+        "axes.labelsize": 12,
+        "xtick.labelsize": 10,
+        "ytick.labelsize": 10,
+        "legend.fontsize": 10,
+        "figure.dpi": 150,
+        "savefig.dpi": 300,
+        "savefig.bbox_inches": "tight",
+        "axes.grid": True,
+        "grid.alpha": 0.3,
+    })
 
 
 def _save_chart(fig: plt.Figure, output_dir: str, name: str) -> None:
@@ -91,7 +96,9 @@ def chart_money(
 ) -> None:
     """Chart 1: Sequential vs Parallel wall-clock time (grouped bar).
 
-    Shows S2 fan-out results at N=5, 10, 15, 20.
+    Shows S2 fan-out results grouped by N value.
+    X-axis: N (1, 2, 5, 10, 15, 20)
+    Y-axis: Wall-clock time (ms)
     """
     _setup_style()
 
@@ -99,65 +106,89 @@ def chart_money(
     if s2.empty:
         return
 
-    target_calls = [5, 10, 15, 20]
-    s2 = s2[s2["num_calls"].isin(target_calls)]
-    if s2.empty:
+    # Get all N values, sorted
+    n_values = sorted(s2["num_calls"].unique())
+    if not n_values:
         return
 
     baselines_order = ["sequential", "direct_parallel", "hangar_parallel"]
     s2 = s2[s2["baseline"].isin(baselines_order)]
 
-    fig, ax = plt.subplots(figsize=(12, 7))
+    fig, ax = plt.subplots(figsize=FIGSIZE_WIDE)
 
-    x_labels = [f"N={n}" for n in sorted(s2["num_calls"].unique())]
+    x_labels = [f"N={n}" for n in n_values]
     x = np.arange(len(x_labels))
     width = 0.25
+    offsets = [-width, 0, width]
 
     for i, baseline in enumerate(baselines_order):
         subset = s2[s2["baseline"] == baseline].sort_values("num_calls")
         if subset.empty:
             continue
-        values = subset["mean_ms"].values
-        errors = (subset["ci_upper"].values - subset["ci_lower"].values) / 2
+
+        # Match values to n_values order
+        values = []
+        errors = []
+        for n in n_values:
+            row = subset[subset["num_calls"] == n]
+            if not row.empty:
+                values.append(row.iloc[0]["mean_ms"])
+                ci_range = (row.iloc[0]["ci_upper"] - row.iloc[0]["ci_lower"]) / 2
+                errors.append(ci_range)
+            else:
+                values.append(0)
+                errors.append(0)
+
         bars = ax.bar(
-            x + i * width,
+            x + offsets[i],
             values,
             width,
             label=_get_label(baseline),
             color=_get_color(baseline),
             yerr=errors,
-            capsize=4,
+            capsize=3,
             edgecolor="white",
             linewidth=0.5,
         )
-        # Annotate speedup on hangar bars
+
+        # Annotate speedup on hangar_parallel bars
         if baseline == "hangar_parallel":
             seq_subset = s2[s2["baseline"] == "sequential"].sort_values("num_calls")
-            if not seq_subset.empty:
-                for j, (bar, seq_val) in enumerate(
-                    zip(bars, seq_subset["mean_ms"].values)
-                ):
-                    if values[j] > 0:
-                        speedup = seq_val / values[j]
+            for j, n in enumerate(n_values):
+                seq_row = seq_subset[seq_subset["num_calls"] == n]
+                if not seq_row.empty and values[j] > 0:
+                    seq_val = seq_row.iloc[0]["mean_ms"]
+                    speedup = seq_val / values[j]
+                    if speedup >= 1.5:  # Only annotate significant speedups
                         ax.annotate(
-                            f"{speedup:.0f}x",
-                            xy=(bar.get_x() + bar.get_width() / 2, bar.get_height()),
+                            f"{speedup:.1f}x",
+                            xy=(x[j] + offsets[i], values[j]),
                             xytext=(0, 8),
                             textcoords="offset points",
                             ha="center",
-                            fontsize=10,
+                            fontsize=9,
                             fontweight="bold",
                             color=_get_color("hangar_parallel"),
                         )
 
-    ax.set_xlabel("Number of Parallel Calls")
+    ax.set_xlabel("Number of Parallel Tool Calls")
     ax.set_ylabel("Wall-Clock Time (ms)")
-    ax.set_title("Sequential vs Parallel Execution: Wall-Clock Time")
-    ax.set_xticks(x + width)
+    ax.set_title("Sequential vs Parallel Execution: The Money Chart")
+    ax.set_xticks(x)
     ax.set_xticklabels(x_labels)
-    ax.legend()
+    ax.legend(loc="upper left")
     ax.set_ylim(bottom=0)
 
+    # Add annotation about what we're seeing
+    ax.text(
+        0.98, 0.95,
+        "Lower is better",
+        transform=ax.transAxes,
+        ha="right", va="top",
+        fontsize=9, style="italic", color="gray"
+    )
+
+    fig.tight_layout()
     _save_chart(fig, output_dir, "chart1_money")
 
 
@@ -175,38 +206,60 @@ def chart_scaling(
     if s2.empty:
         return
 
-    fig, ax = plt.subplots(figsize=(10, 6))
+    fig, ax = plt.subplots(figsize=FIGSIZE_WIDE)
 
-    for baseline in ["sequential", "direct_parallel", "hangar_parallel"]:
+    baselines_order = ["sequential", "direct_parallel", "hangar_parallel"]
+
+    for baseline in baselines_order:
         subset = s2[s2["baseline"] == baseline].sort_values("num_calls")
         if subset.empty:
             continue
+
         x = subset["num_calls"].values
         y = subset["mean_ms"].values
         lower = subset["ci_lower"].values
         upper = subset["ci_upper"].values
 
         color = _get_color(baseline)
-        ax.plot(x, y, "o-", label=_get_label(baseline), color=color, linewidth=2)
+        ax.plot(x, y, "o-", label=_get_label(baseline), color=color, linewidth=2, markersize=6)
         ax.fill_between(x, lower, upper, alpha=0.15, color=color)
 
-    # Reference line: theoretical minimum (single call latency)
-    if not s2.empty:
-        min_latency = 100  # known configured delay
-        ax.axhline(
-            y=min_latency,
-            color="gray",
-            linestyle="--",
-            alpha=0.5,
-            label=f"Theoretical min ({min_latency}ms)",
-        )
+    # Reference line: theoretical minimum (single call latency ~100ms)
+    ax.axhline(
+        y=100,
+        color="gray",
+        linestyle="--",
+        alpha=0.7,
+        linewidth=1.5,
+        label="Theoretical minimum (100ms)",
+    )
+
+    # Add annotation for the concurrency pattern
+    max_n = s2["num_calls"].max()
+    hangar_at_max = s2[(s2["baseline"] == "hangar_parallel") & (s2["num_calls"] == max_n)]
+    if not hangar_at_max.empty:
+        hangar_val = hangar_at_max.iloc[0]["mean_ms"]
+        direct_at_max = s2[(s2["baseline"] == "direct_parallel") & (s2["num_calls"] == max_n)]
+        if not direct_at_max.empty:
+            direct_val = direct_at_max.iloc[0]["mean_ms"]
+            if hangar_val > direct_val * 1.5:
+                ax.annotate(
+                    "Concurrency\nlimit visible",
+                    xy=(max_n, hangar_val),
+                    xytext=(max_n - 3, hangar_val + 100),
+                    fontsize=9,
+                    ha="center",
+                    arrowprops=dict(arrowstyle="->", color="gray", alpha=0.7),
+                )
 
     ax.set_xlabel("Number of Parallel Calls")
     ax.set_ylabel("Total Wall-Clock Time (ms)")
-    ax.set_title("Scaling: Calls vs Total Time")
-    ax.legend()
+    ax.set_title("Scaling: How Time Grows with Parallel Calls")
+    ax.legend(loc="upper left")
     ax.set_ylim(bottom=0)
+    ax.set_xlim(left=0)
 
+    fig.tight_layout()
     _save_chart(fig, output_dir, "chart2_scaling")
 
 
@@ -224,39 +277,76 @@ def chart_cold_start(
     if s4.empty:
         return
 
+    n_values = sorted(s4["num_calls"].unique())
+    if not n_values:
+        return
+
     fig, ax = plt.subplots(figsize=(10, 6))
 
-    baselines = s4["baseline"].unique()
-    x_labels = [f"N={int(n)}" for n in sorted(s4["num_calls"].unique())]
+    baselines_in_data = sorted(s4["baseline"].unique())
+    x_labels = [f"N={int(n)}" for n in n_values]
     x = np.arange(len(x_labels))
     width = 0.35
+    offsets = np.linspace(-width/2, width/2, len(baselines_in_data))
 
-    for i, baseline in enumerate(sorted(baselines)):
+    for i, baseline in enumerate(baselines_in_data):
         subset = s4[s4["baseline"] == baseline].sort_values("num_calls")
         if subset.empty:
             continue
-        values = subset["mean_ms"].values
-        errors = (subset["ci_upper"].values - subset["ci_lower"].values) / 2
-        ax.bar(
-            x + i * width,
+
+        values = []
+        errors = []
+        for n in n_values:
+            row = subset[subset["num_calls"] == n]
+            if not row.empty:
+                values.append(row.iloc[0]["mean_ms"])
+                ci_range = (row.iloc[0]["ci_upper"] - row.iloc[0]["ci_lower"]) / 2
+                errors.append(ci_range)
+            else:
+                values.append(0)
+                errors.append(0)
+
+        bars = ax.bar(
+            x + offsets[i],
             values,
-            width,
+            width * 0.9,
             label=_get_label(baseline),
             color=_get_color(baseline),
             yerr=errors,
-            capsize=4,
+            capsize=3,
             edgecolor="white",
             linewidth=0.5,
         )
 
-    ax.set_xlabel("Simultaneous Calls to Cold Provider")
-    ax.set_ylabel("Total Time Including Cold Start (ms)")
-    ax.set_title("Cold Start: Single-Flight Deduplication")
-    ax.set_xticks(x + width / 2)
+        # Annotate speedup for parallel
+        if baseline == "hangar_parallel":
+            seq_subset = s4[s4["baseline"] == "sequential"].sort_values("num_calls")
+            for j, n in enumerate(n_values):
+                seq_row = seq_subset[seq_subset["num_calls"] == n]
+                if not seq_row.empty and values[j] > 0:
+                    seq_val = seq_row.iloc[0]["mean_ms"]
+                    speedup = seq_val / values[j]
+                    if speedup >= 1.2:
+                        ax.annotate(
+                            f"{speedup:.1f}x",
+                            xy=(x[j] + offsets[i], values[j]),
+                            xytext=(0, 5),
+                            textcoords="offset points",
+                            ha="center",
+                            fontsize=9,
+                            fontweight="bold",
+                            color=_get_color("hangar_parallel"),
+                        )
+
+    ax.set_xlabel("Simultaneous Calls to Provider")
+    ax.set_ylabel("Total Time (ms)")
+    ax.set_title("Cold Start: Parallel vs Sequential Scaling")
+    ax.set_xticks(x)
     ax.set_xticklabels(x_labels)
     ax.legend()
     ax.set_ylim(bottom=0)
 
+    fig.tight_layout()
     _save_chart(fig, output_dir, "chart3_cold_start")
 
 
@@ -277,31 +367,32 @@ def chart_latency_distribution(
         scenario = r.get("scenario", "")
         for m in r.get("measurements", []):
             if m.get("wall_clock_ns", 0) > 0:
-                rows.append(
-                    {
-                        "scenario": scenario,
-                        "baseline": baseline,
-                        "wall_clock_ms": m["wall_clock_ns"] / 1_000_000,
-                    }
-                )
+                rows.append({
+                    "scenario": scenario,
+                    "baseline": baseline,
+                    "wall_clock_ms": m["wall_clock_ns"] / 1_000_000,
+                })
 
     if not rows:
         return
 
     plot_df = pd.DataFrame(rows)
 
+    # Focus on key scenarios
+    key_scenarios = ["s2_fanout", "s5_mixed_latency", "s6_agent_workflow"]
+    plot_df = plot_df[plot_df["scenario"].isin(key_scenarios)]
+
     scenarios = sorted(plot_df["scenario"].unique())
     n_scenarios = len(scenarios)
     if n_scenarios == 0:
         return
 
-    fig, axes = plt.subplots(1, n_scenarios, figsize=(6 * n_scenarios, 6), squeeze=False)
+    fig, axes = plt.subplots(1, n_scenarios, figsize=(5 * n_scenarios, 6), squeeze=False)
 
     for idx, scenario in enumerate(scenarios):
         ax = axes[0][idx]
         subset = plot_df[plot_df["scenario"] == scenario]
 
-        # Create custom palette
         baselines_in_data = sorted(subset["baseline"].unique())
         palette = {b: _get_color(b) for b in baselines_in_data}
 
@@ -317,9 +408,9 @@ def chart_latency_distribution(
             legend=False,
         )
 
-        ax.set_title(scenario)
-        ax.set_xlabel("Method")
-        ax.set_ylabel("Wall-Clock Time (ms)")
+        ax.set_title(scenario.replace("_", " ").title())
+        ax.set_xlabel("")
+        ax.set_ylabel("Wall-Clock Time (ms)" if idx == 0 else "")
         ax.set_xticks(range(len(baselines_in_data)))
         ax.set_xticklabels(
             [_get_label(b) for b in baselines_in_data], rotation=30, ha="right"
@@ -340,24 +431,30 @@ def chart_overhead(
     """Chart 5: Framework overhead (stacked bar)."""
     _setup_style()
 
-    # Compare sequential (direct) vs hangar_sequential for each scenario
+    # Use S1 baseline data for clearest overhead picture
+    s1 = df[df["scenario"] == "s1_baseline"].copy()
+
     overheads = []
-    for scenario in df["scenario"].unique():
-        sdf = df[df["scenario"] == scenario]
-        direct = sdf[sdf["baseline"] == "sequential"]
-        hangar = sdf[sdf["baseline"] == "hangar_sequential"]
+    for delay in sorted(s1["delay_ms"].unique()):
+        delay_df = s1[s1["delay_ms"] == delay]
+        direct = delay_df[delay_df["baseline"] == "sequential"]
+        hangar = delay_df[delay_df["baseline"] == "hangar_sequential"]
+
         if direct.empty or hangar.empty:
             continue
+
         direct_mean = direct.iloc[0]["mean_ms"]
         hangar_mean = hangar.iloc[0]["mean_ms"]
         overhead = max(0, hangar_mean - direct_mean)
-        overheads.append(
-            {
-                "scenario": scenario,
-                "direct_time": direct_mean,
-                "overhead": overhead,
-            }
-        )
+        num_calls = direct.iloc[0]["num_calls"]
+
+        overheads.append({
+            "label": f"{int(delay)}ms delay",
+            "direct_time": direct_mean,
+            "overhead": overhead,
+            "per_call_overhead": overhead / num_calls if num_calls > 0 else 0,
+            "num_calls": num_calls,
+        })
 
     if not overheads:
         return
@@ -388,33 +485,33 @@ def chart_overhead(
         linewidth=0.5,
     )
 
-    # Annotate overhead values
+    # Annotate per-call overhead
     for i, row in oh_df.iterrows():
         total = row["direct_time"] + row["overhead"]
-        if row["direct_time"] > 0:
-            pct = row["overhead"] / row["direct_time"] * 100
-            ax.annotate(
-                f"+{row['overhead']:.1f}ms ({pct:.1f}%)",
-                xy=(i, total),
-                xytext=(0, 5),
-                textcoords="offset points",
-                ha="center",
-                fontsize=9,
-                color=COLORS["overhead"],
-            )
+        per_call = row["per_call_overhead"]
+        ax.annotate(
+            f"+{per_call:.2f}ms/call",
+            xy=(i, total),
+            xytext=(0, 5),
+            textcoords="offset points",
+            ha="center",
+            fontsize=9,
+            color=COLORS["overhead"],
+        )
 
-    ax.set_xlabel("Scenario")
-    ax.set_ylabel("Time (ms)")
-    ax.set_title("Framework Overhead: Direct vs Hangar")
+    ax.set_xlabel("Provider Latency Configuration")
+    ax.set_ylabel("Total Time for 50 Calls (ms)")
+    ax.set_title("Framework Overhead: Direct vs Hangar (S1 Baseline)")
     ax.set_xticks(x)
-    ax.set_xticklabels(oh_df["scenario"], rotation=30, ha="right")
+    ax.set_xticklabels(oh_df["label"])
     ax.legend()
     ax.set_ylim(bottom=0)
 
+    fig.tight_layout()
     _save_chart(fig, output_dir, "chart5_overhead")
 
 
-# --- Chart 6: Agent Workflow Timeline ---
+# --- Chart 6: Agent Workflow Timeline (Gantt) ---
 
 
 def chart_workflow_timeline(
@@ -424,6 +521,7 @@ def chart_workflow_timeline(
     """Chart 6: Gantt-style timeline for S6 agent workflow.
 
     Shows sequential (waterfall) vs parallel (concurrent) execution.
+    This is the most visually compelling chart.
     """
     _setup_style()
 
@@ -431,69 +529,85 @@ def chart_workflow_timeline(
     if not s6_results:
         return
 
-    fig, axes = plt.subplots(1, 2, figsize=(16, 6), sharey=False)
+    fig, axes = plt.subplots(1, 2, figsize=FIGSIZE_GANTT, gridspec_kw={"wspace": 0.3})
 
-    # Define the workflow steps
-    step_labels = [
-        "Fetch repo 1", "Fetch repo 2", "Fetch repo 3",
-        "Search repo 1", "Search repo 2", "Search repo 3",
-        "Write summary",
+    # Define the workflow steps with colors by phase
+    step_info = [
+        ("Fetch repo 1", "#3498DB"),   # Blue - fetch
+        ("Fetch repo 2", "#3498DB"),
+        ("Fetch repo 3", "#3498DB"),
+        ("Search repo 1", "#E67E22"),  # Orange - search
+        ("Search repo 2", "#E67E22"),
+        ("Search repo 3", "#E67E22"),
+        ("Write summary", "#27AE60"),  # Green - write
     ]
-    step_colors = (
-        ["#3498DB"] * 3 +  # Fetch = blue
-        ["#E67E22"] * 3 +  # Search = orange
-        ["#27AE60"] * 1    # Write = green
-    )
+    step_labels = [s[0] for s in step_info]
+    step_colors = [s[1] for s in step_info]
 
-    for ax, baseline_name, title in [
-        (axes[0], "sequential", "Sequential Execution"),
-        (axes[1], "workflow_parallel", "Parallel Workflow"),
-    ]:
+    baseline_configs = [
+        ("sequential", "Sequential Execution", axes[0]),
+        ("workflow_parallel", "Parallel Workflow", axes[1]),
+    ]
+
+    for baseline_name, title, ax in baseline_configs:
         result = next(
             (r for r in s6_results if r.get("baseline") == baseline_name), None
         )
         if result is None:
-            ax.set_title(f"{title} (no data)")
+            ax.set_title(f"{title}\n(no data)")
+            ax.set_yticks(range(len(step_labels)))
+            ax.set_yticklabels(list(reversed(step_labels)))
             continue
 
         measurements = result.get("measurements", [])
         if not measurements:
-            ax.set_title(f"{title} (no data)")
+            ax.set_title(f"{title}\n(no data)")
             continue
 
-        # Use the first successful measurement for the timeline
+        # Use the first successful measurement
         m = next(
             (m for m in measurements if m.get("wall_clock_ns", 0) > 0), None
         )
         if m is None:
-            ax.set_title(f"{title} (no data)")
+            ax.set_title(f"{title}\n(no data)")
             continue
 
         per_call = m.get("per_call_latencies_ns", [])
-        total_ns = m["wall_clock_ns"]
+        total_ms = m["wall_clock_ns"] / 1_000_000
 
         if baseline_name == "sequential" and len(per_call) >= len(step_labels):
             # Sequential: each call starts after the previous ends
             current = 0
-            for i, label in enumerate(step_labels):
-                duration = per_call[i] / 1_000_000  # to ms
+            for i, (label, color) in enumerate(step_info):
+                duration = per_call[i] / 1_000_000
                 ax.barh(
                     len(step_labels) - 1 - i,
                     duration,
                     left=current,
                     height=0.6,
-                    color=step_colors[i],
+                    color=color,
                     edgecolor="white",
-                    linewidth=0.5,
+                    linewidth=1,
                 )
+                # Label inside bar if wide enough
+                if duration > total_ms * 0.08:
+                    ax.text(
+                        current + duration / 2,
+                        len(step_labels) - 1 - i,
+                        f"{duration:.0f}ms",
+                        ha="center", va="center",
+                        fontsize=8, color="white", fontweight="bold"
+                    )
                 current += duration
+
         elif baseline_name == "workflow_parallel" and len(per_call) >= 3:
             # Workflow: step1 parallel, step2 parallel, step3 sequential
-            step1_dur = per_call[0] / 1_000_000
-            step2_dur = per_call[1] / 1_000_000
+            # The per_call latencies are for each step, not individual calls
+            step1_dur = per_call[0] / 1_000_000  # Max of 3 parallel fetches
+            step2_dur = per_call[1] / 1_000_000  # Max of 3 parallel searches
             step3_dur = per_call[2] / 1_000_000 if len(per_call) > 2 else 0
 
-            # Step 1: 3 fetches in parallel
+            # Step 1: 3 fetches in parallel (same start, same duration)
             for i in range(3):
                 ax.barh(
                     len(step_labels) - 1 - i,
@@ -502,8 +616,16 @@ def chart_workflow_timeline(
                     height=0.6,
                     color=step_colors[i],
                     edgecolor="white",
-                    linewidth=0.5,
+                    linewidth=1,
                 )
+            # Label for step 1
+            ax.text(
+                step1_dur / 2, len(step_labels) - 2,
+                f"{step1_dur:.0f}ms",
+                ha="center", va="center",
+                fontsize=8, color="white", fontweight="bold"
+            )
+
             # Step 2: 3 searches in parallel, after step 1
             for i in range(3, 6):
                 ax.barh(
@@ -513,8 +635,16 @@ def chart_workflow_timeline(
                     height=0.6,
                     color=step_colors[i],
                     edgecolor="white",
-                    linewidth=0.5,
+                    linewidth=1,
                 )
+            # Label for step 2
+            ax.text(
+                step1_dur + step2_dur / 2, len(step_labels) - 5,
+                f"{step2_dur:.0f}ms",
+                ha="center", va="center",
+                fontsize=8, color="white", fontweight="bold"
+            )
+
             # Step 3: write, after step 2
             ax.barh(
                 0,
@@ -523,19 +653,72 @@ def chart_workflow_timeline(
                 height=0.6,
                 color=step_colors[6],
                 edgecolor="white",
-                linewidth=0.5,
+                linewidth=1,
             )
+            if step3_dur > 30:
+                ax.text(
+                    step1_dur + step2_dur + step3_dur / 2, 0,
+                    f"{step3_dur:.0f}ms",
+                    ha="center", va="center",
+                    fontsize=8, color="white", fontweight="bold"
+                )
+
+        # Add vertical line at total time
+        ax.axvline(x=total_ms, color="red", linestyle="--", linewidth=2, alpha=0.7)
+        ax.text(
+            total_ms, -0.7,
+            f"Total: {total_ms:.0f}ms",
+            ha="center", va="top",
+            fontsize=10, fontweight="bold", color="red"
+        )
 
         ax.set_yticks(range(len(step_labels)))
         ax.set_yticklabels(list(reversed(step_labels)))
         ax.set_xlabel("Time (ms)")
-        ax.set_title(f"{title}\n(Total: {total_ns / 1_000_000:.0f}ms)")
+        ax.set_title(title, fontsize=12, fontweight="bold")
         ax.set_xlim(left=0)
+        ax.set_ylim(-1, len(step_labels))
+
+    # Calculate and display time saved
+    seq_result = next((r for r in s6_results if r.get("baseline") == "sequential"), None)
+    par_result = next((r for r in s6_results if r.get("baseline") == "workflow_parallel"), None)
+
+    if seq_result and par_result:
+        seq_stats = seq_result.get("statistics", {}).get("wall_clock_ms", {})
+        par_stats = par_result.get("statistics", {}).get("wall_clock_ms", {})
+        seq_mean = seq_stats.get("mean", 0)
+        par_mean = par_stats.get("mean", 0)
+
+        if seq_mean > 0 and par_mean > 0:
+            saved = seq_mean - par_mean
+            pct = (saved / seq_mean) * 100
+            fig.text(
+                0.5, 0.02,
+                f"Time saved: {saved:.0f}ms ({pct:.0f}%) — Speedup: {seq_mean/par_mean:.1f}x",
+                ha="center", fontsize=12, fontweight="bold",
+                color=COLORS["hangar_parallel"]
+            )
+
+    # Legend for phases
+    legend_elements = [
+        mpatches.Patch(color="#3498DB", label="Fetch"),
+        mpatches.Patch(color="#E67E22", label="Search"),
+        mpatches.Patch(color="#27AE60", label="Write"),
+    ]
+    fig.legend(
+        handles=legend_elements,
+        loc="upper center",
+        ncol=3,
+        bbox_to_anchor=(0.5, 0.98),
+        frameon=False
+    )
 
     fig.suptitle(
-        "Agent Workflow: Sequential vs Parallel Pipeline", fontsize=14, y=1.02
+        "Agent Workflow: Sequential vs Parallel Pipeline",
+        fontsize=14, fontweight="bold", y=1.02
     )
-    fig.tight_layout()
+
+    fig.tight_layout(rect=[0, 0.05, 1, 0.95])
     _save_chart(fig, output_dir, "chart6_workflow_timeline")
 
 

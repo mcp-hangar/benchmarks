@@ -8,8 +8,11 @@ build/
 .uv/
 uv.lock
 
-# Results are tracked, but ignore temp files
+# Generated results and charts (each user generates their own)
+results/raw/*.json
 results/raw/*.tmp
+results/charts/*.png
+results/charts/*.svg
 results/charts/*.tmp
 
 # IDE
@@ -17,6 +20,9 @@ results/charts/*.tmp
 .idea/
 *.swp
 *.swo
+
+# Claude Code
+.claude/
 
 # Hangar auto-created data
 data/

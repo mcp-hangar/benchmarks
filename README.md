@@ -39,6 +39,22 @@ make benchmark
 make full-benchmark
 ```
 
+### Development with local mcp-hangar
+
+If you're working against a local (e.g. from-main) build of `mcp-hangar`, use `SKIP_HANGAR=1` to prevent overwriting it with the PyPI version:
+
+```bash
+# Install hangar from local checkout
+uv pip install -e ../mcp-hangar/packages/core
+
+# Install remaining dependencies without touching mcp-hangar
+make setup SKIP_HANGAR=1
+
+# Run benchmarks (also respects SKIP_HANGAR to skip uv sync)
+make smoke-test SKIP_HANGAR=1
+make benchmark SKIP_HANGAR=1
+```
+
 ## Requirements
 
 - Python 3.11+

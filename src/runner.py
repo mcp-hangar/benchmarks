@@ -23,7 +23,7 @@ from src.scenarios.s3_multi_provider import S3MultiProvider, create_scenarios as
 from src.scenarios.s4_cold_start import S4ColdStart, create_scenarios as s4_scenarios
 from src.scenarios.s5_mixed_latency import S5MixedLatency, create_scenarios as s5_scenarios
 from src.scenarios.s6_agent_workflow import S6AgentWorkflow, create_scenarios as s6_scenarios
-from src.analysis.stats import generate_report
+from src.analysis.stats import generate_report, generate_markdown_report
 from src.analysis.charts import generate_all_charts
 from src.utils.environment import capture_environment
 
@@ -145,9 +145,18 @@ def charts(input_dir: str, output_dir: str) -> None:
 
 @cli.command()
 @click.option("--input", "-i", "input_dir", default="results/raw", help="Input dir")
-def report(input_dir: str) -> None:
+@click.option("--format", "-f", "output_format", default="console",
+              type=click.Choice(["console", "markdown"]), help="Output format")
+@click.option("--output", "-o", "output_path", default=None, help="Output file (for markdown)")
+def report(input_dir: str, output_format: str, output_path: str | None) -> None:
     """Print statistical report from existing results."""
-    generate_report(input_dir)
+    if output_format == "markdown":
+        if output_path is None:
+            output_path = "results/REPORT.md"
+        md = generate_markdown_report(input_dir, output_path)
+        console.print(f"[green]Markdown report saved to {output_path}[/]")
+    else:
+        generate_report(input_dir)
 
 
 def main() -> None:
