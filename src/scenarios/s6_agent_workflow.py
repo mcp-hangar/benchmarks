@@ -16,16 +16,11 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
-from src.baselines.direct_sequential import DirectMCPClient, run_sequential
-from src.baselines.direct_parallel import run_parallel
-from src.baselines.hangar_sequential import run_hangar_sequential
-from src.baselines.hangar_parallel import run_hangar_parallel
+from src.baselines.direct_sequential import run_sequential
 from src.harness import BenchmarkConfig, ToolCall, run_benchmark
 from src.providers.configs import make_provider_config
 from src.scenarios.base import BaseScenario, console
 from src.utils.timing import BatchTimingRecord, TimingRecord, now_ns
-
-from mcp_hangar import Hangar, HangarConfig
 
 
 class S6AgentWorkflow(BaseScenario):

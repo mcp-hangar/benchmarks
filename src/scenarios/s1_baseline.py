@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from src.harness import BenchmarkConfig, ToolCall
+from src.harness import ToolCall
 from src.providers.configs import make_provider_config
 from src.scenarios.base import BaseScenario
 

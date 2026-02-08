@@ -3,12 +3,11 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Any
+
+from mcp_hangar import Hangar
 
 from src.harness import ToolCall
 from src.utils.timing import BatchTimingRecord, TimingRecord, now_ns
-
-from mcp_hangar import Hangar
 
 
 async def _invoke_with_timing(

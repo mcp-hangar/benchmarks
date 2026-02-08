@@ -7,11 +7,9 @@ and generates summary tables.
 from __future__ import annotations
 
 import json
-import os
 from pathlib import Path
 from typing import Any
 
-import numpy as np
 import pandas as pd
 from rich.console import Console
 from rich.table import Table
@@ -537,7 +535,7 @@ def generate_markdown_report(results_dir: str = "results/raw", output_path: str 
         "",
         f"- Runs per measurement: {results[0].get('config', {}).get('runs', 30)}",
         f"- Warmup runs: {results[0].get('config', {}).get('warmup_runs', 5)}",
-        f"- Statistical confidence: 95% CI",
+        "- Statistical confidence: 95% CI",
         "",
     ])
 

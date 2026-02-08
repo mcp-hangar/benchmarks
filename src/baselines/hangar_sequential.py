@@ -2,13 +2,10 @@
 
 from __future__ import annotations
 
-from typing import Any
+from mcp_hangar import Hangar
 
 from src.harness import ToolCall
 from src.utils.timing import BatchTimingRecord, TimingRecord, now_ns
-
-# Hangar imports — these require mcp-hangar to be installed
-from mcp_hangar import Hangar
 
 
 async def run_hangar_sequential(

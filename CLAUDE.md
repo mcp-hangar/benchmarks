@@ -92,7 +92,7 @@ S6 adds `workflow_parallel` — 3-step pipeline with per-step parallelism.
 |----|------|-----------------|-----------|
 | **S1** | Per-call overhead | delay ∈ [0, 10, 50, 100, 200]ms, 50 calls | sequential, hangar_sequential |
 | **S2** | Parallel fan-out scaling | N ∈ [1, 2, 5, 10, 15, 20] tools, 100ms delay | all four |
-| **S3** | Cross-provider parallelism | 3 providers × 100ms | all four |
+| **S3** | Cross-provider parallelism | 5 providers [50,100,200,300,500]ms; 3 providers × 100ms | all four |
 | **S4** | Cold start deduplication | N ∈ [1, 5, 10, 20] concurrent, 500ms startup | sequential, hangar_parallel |
 | **S5** | Mixed latency / head-of-line | 5×10ms + 3×100ms + 1×500ms | all four |
 | **S6** | Agent workflow (3-step pipeline) | fetch(200ms)×3 → search(300ms)×3 → fs(50ms)×1 | sequential, workflow_parallel |

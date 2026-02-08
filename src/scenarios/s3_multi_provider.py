@@ -28,7 +28,7 @@ class S3MultiProvider(BaseScenario):
 
     @property
     def name(self) -> str:
-        lat_str = ", ".join(f"{l}ms" for l in self.latencies)
+        lat_str = ", ".join(f"{lat}ms" for lat in self.latencies)
         return f"S3 Multi-Provider ({lat_str})"
 
     @property

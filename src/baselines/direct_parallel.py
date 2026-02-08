@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Any
 
 from src.baselines.direct_sequential import DirectMCPClient
 from src.harness import ToolCall

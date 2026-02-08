@@ -16,15 +16,15 @@ import click
 from rich.console import Console
 from rich.panel import Panel
 
-from src.harness import BenchmarkConfig
-from src.scenarios.s1_baseline import S1Baseline, create_scenarios as s1_scenarios
-from src.scenarios.s2_fanout import S2Fanout, create_scenarios as s2_scenarios
-from src.scenarios.s3_multi_provider import S3MultiProvider, create_scenarios as s3_scenarios
-from src.scenarios.s4_cold_start import S4ColdStart, create_scenarios as s4_scenarios
-from src.scenarios.s5_mixed_latency import S5MixedLatency, create_scenarios as s5_scenarios
-from src.scenarios.s6_agent_workflow import S6AgentWorkflow, create_scenarios as s6_scenarios
-from src.analysis.stats import generate_report, generate_markdown_report
 from src.analysis.charts import generate_all_charts
+from src.analysis.stats import generate_markdown_report, generate_report
+from src.harness import BenchmarkConfig
+from src.scenarios.s1_baseline import create_scenarios as s1_scenarios
+from src.scenarios.s2_fanout import create_scenarios as s2_scenarios
+from src.scenarios.s3_multi_provider import create_scenarios as s3_scenarios
+from src.scenarios.s4_cold_start import create_scenarios as s4_scenarios
+from src.scenarios.s5_mixed_latency import create_scenarios as s5_scenarios
+from src.scenarios.s6_agent_workflow import create_scenarios as s6_scenarios
 from src.utils.environment import capture_environment
 
 console = Console()
@@ -153,7 +153,7 @@ def report(input_dir: str, output_format: str, output_path: str | None) -> None:
     if output_format == "markdown":
         if output_path is None:
             output_path = "results/REPORT.md"
-        md = generate_markdown_report(input_dir, output_path)
+        generate_markdown_report(input_dir, output_path)
         console.print(f"[green]Markdown report saved to {output_path}[/]")
     else:
         generate_report(input_dir)

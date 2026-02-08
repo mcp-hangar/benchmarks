@@ -2,20 +2,18 @@
 
 from __future__ import annotations
 
-import asyncio
 import json
 import os
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from pathlib import Path
 from typing import Any, Callable, Coroutine
 
 from rich.console import Console
-from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskID
+from rich.progress import BarColumn, Progress, SpinnerColumn, TaskID, TextColumn
 
 from src.utils.environment import capture_environment
-from src.utils.timing import BatchTimingRecord, now_ns, ns_to_ms
+from src.utils.timing import BatchTimingRecord, ns_to_ms
 
 console = Console()
 

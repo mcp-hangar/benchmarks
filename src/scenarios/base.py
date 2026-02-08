@@ -3,10 +3,8 @@
 from __future__ import annotations
 
 import abc
-import asyncio
 import logging
 import os
-import sys
 from typing import Any
 
 # Suppress Hangar's verbose structlog output during benchmarks
@@ -23,11 +21,14 @@ try:
 except Exception:
     pass
 
+from mcp_hangar import Hangar, HangarConfig
 from rich.console import Console
 
-from src.baselines.direct_sequential import DirectMCPClient, run_sequential
 from src.baselines.direct_parallel import run_parallel
+from src.baselines.direct_sequential import DirectMCPClient, run_sequential
+from src.baselines.hangar_parallel import run_hangar_parallel
 from src.baselines.hangar_sequential import run_hangar_sequential
+from src.harness import BenchmarkConfig, ToolCall, run_benchmark
 
 
 def _reset_hangar_globals() -> None:
@@ -39,8 +40,8 @@ def _reset_hangar_globals() -> None:
     try:
         # 1. Reset the three CQRS buses
         from mcp_hangar.infrastructure.command_bus import reset_command_bus
-        from mcp_hangar.infrastructure.query_bus import reset_query_bus
         from mcp_hangar.infrastructure.event_bus import reset_event_bus
+        from mcp_hangar.infrastructure.query_bus import reset_query_bus
 
         reset_command_bus()
         reset_query_bus()
@@ -113,12 +114,7 @@ def _reset_hangar_globals() -> None:
 
     except Exception:
         pass  # Best effort — if reset fails, the benchmark will error out naturally
-from src.baselines.hangar_parallel import run_hangar_parallel
-from src.harness import BenchmarkConfig, ToolCall, run_benchmark
-from src.providers.configs import make_provider_config
-from src.utils.timing import BatchTimingRecord
 
-from mcp_hangar import Hangar, HangarConfig
 
 console = Console()
 
