@@ -43,15 +43,22 @@ _MATH_SERVER = _MCP_HANGAR_REPO / "examples" / "provider_math" / "server.py"
 
 # Minimal, backend-lazy config: one cold subprocess provider (math). The gateway
 # serves /health, /metrics, server/discover, and (on invoke) the math tools.
+# The topology mode is overridable via MCP_HANGAR_COMPAT_MODE (default | front_door)
+# so the matrix can test both.
 _MINIMAL_CONFIG = """\
 logging:
   level: WARNING
-mcp_servers:
+{tool_access}mcp_servers:
   math:
     mode: subprocess
     command: ["{python}", "{server}"]
     idle_ttl_s: 60
 """
+
+
+def _tool_access_block() -> str:
+    mode = os.environ.get("MCP_HANGAR_COMPAT_MODE", "").strip()
+    return f"tool_access:\n  mode: {mode}\n" if mode else ""
 
 
 def pytest_collection_modifyitems(
@@ -152,7 +159,11 @@ def hangar() -> Iterator[str]:
     with tempfile.TemporaryDirectory(prefix="compat_hangar_") as d:
         yield from _serve_hangar(
             Path(d),
-            _MINIMAL_CONFIG.format(python=sys.executable, server=str(_MATH_SERVER)),
+            _MINIMAL_CONFIG.format(
+                python=sys.executable,
+                server=str(_MATH_SERVER),
+                tool_access=_tool_access_block(),
+            ),
         )
 
 
