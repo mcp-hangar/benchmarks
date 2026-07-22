@@ -38,3 +38,8 @@ report: ## Print statistical report from existing results
 
 clean: ## Remove all results
 	rm -rf results/raw/*.json results/charts/*.png results/charts/*.svg
+
+# ---- Compatibility harness (cross protocol generation; see compat/README.md) ----
+.PHONY: compat-test
+compat-test:  ## Run the legacy-vs-modern compatibility harness against a gateway on PATH
+	MCP_HANGAR_COMPAT=1 python -m pytest compat/ -v
