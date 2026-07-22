@@ -37,7 +37,7 @@ client too, add a second venv (`mcp==2.0.0bN`) once the SDK v2 migration lands
 |------|---------|
 | **Handshake** (`test_handshake.py`) | legacy `initialize` completes + governed tools listed + `hangar_call` invocation works; modern `server/discover` answers — both on one gateway. |
 | **Negotiation** (`test_negotiation.py`) | `server/discover` advertises `supportedVersions` (incl. the modern `2026-07-28` version) and a shaped tool surface; stateless `POST /mcp` `tools/call` is **recorded** as served / not-served. |
-| **Governance surface** (`test_governance_surface.py`) | advertised `capabilities` are consistent; dormant task governance is **absent** (relay-only, ADR-008) — this flips to an asserted *presence* when ADR-014 (relay-with-governance) + [#322](https://github.com/mcp-hangar/mcp-hangar/issues/322) activate. |
+| **Governance surface** (`test_governance_surface.py`) | advertised `capabilities` are consistent; task governance is **advertised** (relay-with-governance, ADR-014, [#322](https://github.com/mcp-hangar/mcp-hangar/issues/322)) — **activated 2026-07-22**, flipped from ADR-008's relay-only *absence* assertion when the relay seam went live. |
 
 Modern-surface tests depend on the `discover` fixture: if the running gateway
 does not expose `server/discover`, they **record the gap and skip** rather than

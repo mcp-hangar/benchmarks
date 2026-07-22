@@ -1,9 +1,10 @@
 """Axis 3 — deprecated / governance surface through the transition window.
 
 Asserts the gateway's *advertised* posture is consistent across generations and
-that dormant task governance is NOT advertised — the relay-only stance of
-ADR-008. This assertion **flips** once ADR-014 (relay-with-governance) + #322
-land and the task capability is advertised on activation.
+that task governance **is** advertised — the relay-with-governance stance of
+ADR-014, **activated 2026-07-22** (#322). This flipped from ADR-008's relay-only
+assertion (that the task capability was absent) when the relay seam went live.
+Run against an activated gateway (``relay_tasks_enabled`` at its default True).
 """
 
 from __future__ import annotations
@@ -22,23 +23,27 @@ def test_capabilities_advertised(discover: dict, record) -> None:
     )
 
 
-def test_task_governance_is_not_advertised(discover: dict, record) -> None:
-    """Relay-only (ADR-008): no task/experimental-tasks capability is advertised.
+def test_task_governance_is_advertised(discover: dict, record) -> None:
+    """Relay-with-governance (ADR-014, activated 2026-07-22): the task capability
+    is advertised once the relay seam is live (#322).
 
-    Flips to an asserted *presence* when ADR-014's relay seam activates (#322).
+    Flipped from ADR-008's relay-only assertion that it was absent. The seam is
+    live per D6/ADR-009 ("advertise once it runs"); the relay itself still only
+    engages on an upstream's first real task (D5).
     """
     caps = discover.get("capabilities") or {}
     experimental = caps.get("experimental") or {}
     advertises_tasks = bool(caps.get("tasks")) or any(
         "task" in k.lower() for k in experimental
     )
-    assert not advertises_tasks, (
-        f"task governance unexpectedly advertised (ADR-014 activated?): {caps}"
+    assert advertises_tasks, (
+        "task governance capability not advertised — expected an ADR-014-activated "
+        f"gateway (relay_tasks_enabled default True): {caps}"
     )
     record(
         "both",
         "governance",
         "tasks capability advertised?",
-        "relay-only (absent)",
-        "flips to present after ADR-014/#322",
+        "present (governed relay)",
+        "flipped on ADR-014/#322 activation 2026-07-22",
     )
