@@ -12,8 +12,16 @@ benchmarks in `src/`.
 ## Run
 
 ```bash
-# Point at a gateway on PATH (a local editable build, or `pip install --pre mcp-hangar`)
+make compat-venv-legacy          # once: builds .venv-legacy with the SDK v1 client
+make compat-test                 # runs both generations against one gateway
+make compat-matrix               # renders the matrix from the last run
+```
+
+Or directly:
+
+```bash
 MCP_HANGAR_COMPAT=1 python -m pytest compat/ -v
+python -m compat.render_matrix --format markdown
 ```
 
 Opt-in and skip-safe: without `MCP_HANGAR_COMPAT=1` everything skips; a missing
@@ -24,12 +32,23 @@ CLI (mirrors `mcp-hangar/tests/live`); the math stub is resolved from the siblin
 
 ### Two client generations, one gateway
 
-The legacy generation needs the **SDK v1** client (`mcp==1.28.x`). The modern
-generation is driven with plain `httpx` (stateless `server/discover` + `Mcp-*`
-routing headers), so it exercises the gateway's modern surface without pinning a
-specific client SDK build. To test the modern path against the actual SDK v2
-client too, add a second venv (`mcp==2.0.0bN`) once the SDK v2 migration lands
-([mcp-hangar#547](https://github.com/mcp-hangar/mcp-hangar/issues/547)).
+The two SDK generations **cannot share an interpreter** — one `mcp` distribution
+per environment, and v2 renamed `streamablehttp_client` to
+`streamable_http_client`. So:
+
+- **legacy** runs out of process under `.venv-legacy` (`mcp==1.28.1`), driven by
+  `legacy_runner.py` over stdout JSON. Missing venv ⇒ those axes skip, not fail.
+- **modern** is driven with plain `httpx` against `server/discover` and a
+  stateless `POST /mcp`, so it exercises the gateway's surface without pinning a
+  client build.
+
+Two client-side requirements bit us and are now encoded in `clients.py`, because
+getting them wrong looks exactly like an unserved endpoint:
+
+- every modern request carries the reserved `params._meta` envelope (protocol
+  version, client info, client capabilities) — there is no handshake to
+  negotiate them, and omitting it is answered `-32602`;
+- `Accept` must cover `text/event-stream`, or the modern entry answers `406`.
 
 ## Axes
 
@@ -37,7 +56,15 @@ client too, add a second venv (`mcp==2.0.0bN`) once the SDK v2 migration lands
 |------|---------|
 | **Handshake** (`test_handshake.py`) | legacy `initialize` completes + governed tools listed + `hangar_call` invocation works; modern `server/discover` answers — both on one gateway. |
 | **Negotiation** (`test_negotiation.py`) | `server/discover` advertises `supportedVersions` (incl. the modern `2026-07-28` version) and a shaped tool surface; stateless `POST /mcp` `tools/call` is **recorded** as served / not-served. |
-| **Governance surface** (`test_governance_surface.py`) | advertised `capabilities` are consistent; task governance is **advertised** (relay-with-governance, ADR-014, [#322](https://github.com/mcp-hangar/mcp-hangar/issues/322)) — **activated 2026-07-22**, flipped from ADR-008's relay-only *absence* assertion when the relay seam went live. |
+| **Governance surface** (`test_governance_surface.py`) | advertised `capabilities` are consistent across generations; task governance is **advertised** (relay-with-governance, ADR-014, [#322](https://github.com/mcp-hangar/mcp-hangar/issues/322)) — flipped from ADR-008's relay-only *absence* assertion when the relay seam went live. |
+| **Tasks relay** (`test_tasks_relay.py`) | a task handle is **relayed, not refused**; the task reaches a terminal state (no hang); `tasks/result` returns the governed payload; a client that cannot be asked for consent fails **closed**. Rewritten from the issue's original ADR-008 `TaskRelayNotSupported` assertion, which ADR-014 superseded. |
+
+## The artifact
+
+Each check appends a row to `compat/results/cross_gen_matrix.json` with the
+environment (gateway version, both client SDK versions). Checks record their
+verdict **before** asserting, so a failure shows up as a red cell rather than a
+missing one — the matrix is the deliverable, not a side effect of a green run.
 
 Modern-surface tests depend on the `discover` fixture: if the running gateway
 does not expose `server/discover`, they **record the gap and skip** rather than

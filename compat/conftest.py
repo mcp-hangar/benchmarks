@@ -40,6 +40,8 @@ _MCP_HANGAR_REPO = Path(
     )
 )
 _MATH_SERVER = _MCP_HANGAR_REPO / "examples" / "provider_math" / "server.py"
+# A task-emitting upstream (v2-native Tasks extension) for the relay axis.
+_TASK_SERVER = _MCP_HANGAR_REPO / "examples" / "task_upstream" / "server.py"
 
 # Minimal, backend-lazy config: one cold subprocess provider (math). The gateway
 # serves /health, /metrics, server/discover, and (on invoke) the math tools.
@@ -52,6 +54,16 @@ logging:
   math:
     mode: subprocess
     command: ["{python}", "{server}"]
+    idle_ttl_s: 60
+{task_backend}"""
+
+# Appended to the config when the task upstream is available. `remote` because
+# that server speaks streamable HTTP, so the harness starts it separately and
+# points the gateway at it.
+_TASK_BACKEND_CONFIG = """\
+  task-upstream:
+    mode: remote
+    endpoint: http://127.0.0.1:{port}/mcp
     idle_ttl_s: 60
 """
 
@@ -150,7 +162,47 @@ def _serve_hangar(workdir: Path, config_text: str) -> Iterator[str]:
 
 
 @pytest.fixture(scope="session")
-def hangar() -> Iterator[str]:
+def task_backend() -> Iterator[int | None]:
+    """Start the v2-native task-emitting upstream; yields its port, or ``None``.
+
+    Skip-safe by design: the relay axis records "backend absent" rather than
+    failing when the sibling checkout has no `examples/task_upstream` (it landed
+    with mcp-hangar#597) or when the server cannot start.
+    """
+    if not _TASK_SERVER.exists():
+        yield None
+        return
+    port = _free_port()
+    env = {**os.environ, "MCP_HOST": "127.0.0.1", "MCP_PORT": str(port), "MCP_TASK_WORK_SECONDS": "1.0"}
+    proc = subprocess.Popen(
+        [sys.executable, str(_TASK_SERVER)],
+        env=env,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    deadline = time.time() + _STARTUP_TIMEOUT_S
+    ready = False
+    while time.time() < deadline and proc.poll() is None:
+        try:
+            # An un-negotiated POST is enough to prove the port is serving.
+            httpx.post(f"http://127.0.0.1:{port}/mcp", timeout=1.0)
+            ready = True
+            break
+        except Exception:  # noqa: BLE001 -- still starting
+            time.sleep(_POLL_INTERVAL_S)
+    try:
+        yield port if ready else None
+    finally:
+        if proc.poll() is None:
+            proc.terminate()
+            try:
+                proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+
+
+@pytest.fixture(scope="session")
+def hangar(task_backend: int | None) -> Iterator[str]:
     """A single running Hangar over HTTP; both client generations target it."""
     if not _MATH_SERVER.exists():
         pytest.skip(f"math stub not found at {_MATH_SERVER} (set MCP_HANGAR_REPO)")
@@ -163,6 +215,7 @@ def hangar() -> Iterator[str]:
                 python=sys.executable,
                 server=str(_MATH_SERVER),
                 tool_access=_tool_access_block(),
+                task_backend=(_TASK_BACKEND_CONFIG.format(port=task_backend) if task_backend else ""),
             ),
         )
 
@@ -183,6 +236,16 @@ def hangar_version(hangar: str) -> str:
         )
         return (out.stdout or out.stderr).strip().split()[-1] or "unknown"
     except Exception:  # noqa: BLE001
+        return "unknown"
+
+
+def _legacy_sdk_version() -> str:
+    """The `mcp` version in the legacy venv, for the artifact metadata."""
+    from compat import clients
+
+    try:
+        return clients.legacy_sdk_version()
+    except Exception:  # noqa: BLE001 -- metadata is best-effort
         return "unknown"
 
 
@@ -224,6 +287,7 @@ def record(hangar_version: str) -> Iterator:
         "generated_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         "environment": {
             "hangar_version": hangar_version,
+            "legacy_sdk_version": _legacy_sdk_version(),
             "mcp_sdk_version": mcp_ver,
             "python": platform.python_version(),
         },

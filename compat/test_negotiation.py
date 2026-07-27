@@ -19,45 +19,54 @@ def test_supported_versions_advertised(discover: dict, record) -> None:
 
 
 def test_discover_tools_are_shaped(discover: dict, record) -> None:
+    """The stateless surface must actually describe a tool surface.
+
+    `server/discover` is how a modern client learns what it may call — there is
+    no `initialize` and no `tools/list` handshake to fall back on. An empty
+    `tools` on a gateway with a configured backend leaves that client with
+    nothing (mcp-hangar#606).
+    """
     tools = discover.get("tools") or []
-    assert tools, "server/discover advertised no tools"
-    # Each tool is a serialized MCP Tool: at minimum a name.
-    assert all(isinstance(t, dict) and t.get("name") for t in tools), tools
+    shaped = bool(tools) and all(isinstance(t, dict) and t.get("name") for t in tools)
+
     record(
         "modern",
         "negotiation",
         "discover.tools shape",
-        "pass",
-        f"tools={[t['name'] for t in tools][:8]}",
+        "pass" if shaped else "fail",
+        f"tools={[t.get('name') for t in tools][:8] if tools else '[] (empty)'}",
     )
 
+    assert tools, "server/discover advertised no tools"
+    assert shaped, tools
 
-def test_modern_stateless_tool_call_recorded(hangar: str, record) -> None:
-    """A stateless POST /mcp with modern routing headers and no session.
 
-    Recorded (not asserted): whether the gateway serves a stateless tools/call
-    on this build. The value is the data point — the matrix shows served vs
-    not-yet-served — not a hard gate, since the stateless invoke path is still
-    landing.
+def test_modern_stateless_tool_call_is_served(hangar: str, record) -> None:
+    """A stateless POST /mcp tools/call — no session, modern routing headers.
+
+    A hard gate, not a recorded observation. It was recorded while the modern
+    surface was still landing; the gateway serves it now (mcp-hangar#560/#594),
+    so a regression here should fail the harness rather than quietly flip a cell
+    in the matrix.
+
+    Note what "served" required on the client side: the reserved `params._meta`
+    envelope AND an Accept covering `text/event-stream`. Omitting either is
+    answered -32602 / 406 and reads like an unserved endpoint.
     """
     resp = clients.modern_tool_call(
         hangar,
         "hangar_call",
-        {
-            "calls": [
-                {"mcp_server": "math", "tool": "add", "arguments": {"a": 2, "b": 3}}
-            ]
-        },
+        {"calls": [{"mcp_server": "math", "tool": "add", "arguments": {"a": 2, "b": 3}}]},
     )
-    served = resp.status_code == 200 and "result" in (
-        resp.json()
-        if resp.headers.get("content-type", "").startswith("application/json")
-        else {}
-    )
+    body = resp.json() if resp.headers.get("content-type", "").startswith("application/json") else {}
+    served = resp.status_code == 200 and "result" in body
+
     record(
         "modern",
         "negotiation",
         "stateless POST /mcp tools/call",
-        "pass" if served else "not-served",
+        "pass" if served else "fail",
         f"status={resp.status_code}",
     )
+
+    assert served, f"stateless tools/call not served: HTTP {resp.status_code} {resp.text[:200]}"

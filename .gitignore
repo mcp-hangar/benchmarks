@@ -33,3 +33,4 @@ Thumbs.db
 
 # compat harness generated artifact
 compat/results/cross_gen_matrix.json
+.venv-legacy/
