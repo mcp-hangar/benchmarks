@@ -11,16 +11,27 @@ from __future__ import annotations
 
 
 def test_capabilities_advertised(discover: dict, record) -> None:
+    """The stateless surface advertises a real capability set.
+
+    Asserts the *shape*, not a specific flag value. This used to assert
+    `tools.listChanged is True`, which passed only because the gateway returned a
+    hardcoded capability set; the true value is `False` — Hangar does not emit
+    per-session `tools/list_changed` (mcp-hangar#234, blocked upstream). Pinning
+    the fabricated value would have kept the harness green through exactly the
+    bug it exists to catch (mcp-hangar#605).
+    """
     caps = discover.get("capabilities") or {}
-    # The gateway advertises tools with listChanged; that is the stable surface.
-    assert caps.get("tools", {}).get("listChanged") is True, caps
+    has_tools = isinstance(caps.get("tools"), dict)
+
     record(
         "modern",
         "governance",
-        "capabilities.tools.listChanged",
-        "pass",
-        f"capabilities={caps}",
+        "capabilities shape",
+        "pass" if has_tools else "fail",
+        f"advertised={sorted(caps)} listChanged={caps.get('tools', {}).get('listChanged')}",
     )
+
+    assert has_tools, f"no tools capability advertised: {caps}"
 
 
 def test_task_governance_is_advertised(discover: dict, record) -> None:
