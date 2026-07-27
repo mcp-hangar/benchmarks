@@ -36,14 +36,19 @@ def test_task_governance_is_advertised(discover: dict, record) -> None:
     advertises_tasks = bool(caps.get("tasks")) or any(
         "task" in k.lower() for k in experimental
     )
-    assert advertises_tasks, (
-        "task governance capability not advertised — expected an ADR-014-activated "
-        f"gateway (relay_tasks_enabled default True): {caps}"
-    )
+
+    # Record BEFORE asserting: a red cell in the matrix is the point of the
+    # artifact, and a test that dies before recording leaves a hole instead.
     record(
-        "both",
+        "modern",
         "governance",
-        "tasks capability advertised?",
-        "present (governed relay)",
-        "flipped on ADR-014/#322 activation 2026-07-22",
+        "tasks capability via server/discover",
+        "pass" if advertises_tasks else "fail",
+        f"capabilities={caps}",
+    )
+
+    assert advertises_tasks, (
+        "task governance is not advertised on the stateless discovery surface. "
+        "`initialize` does advertise it, so a modern client -- which has no "
+        f"handshake to learn from -- sees a smaller capability set (mcp-hangar#605): {caps}"
     )

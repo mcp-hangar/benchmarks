@@ -40,6 +40,16 @@ clean: ## Remove all results
 	rm -rf results/raw/*.json results/charts/*.png results/charts/*.svg
 
 # ---- Compatibility harness (cross protocol generation; see compat/README.md) ----
+.PHONY: compat-venv-legacy
+compat-venv-legacy:  ## Build the SDK-v1 client venv the legacy generation runs in
+	python3 -m venv .venv-legacy
+	.venv-legacy/bin/pip install -q "mcp==1.28.1"
+	@.venv-legacy/bin/python -c "import importlib.metadata as m; print('legacy client SDK:', m.version('mcp'))"
+
 .PHONY: compat-test
 compat-test:  ## Run the legacy-vs-modern compatibility harness against a gateway on PATH
 	MCP_HANGAR_COMPAT=1 python -m pytest compat/ -v
+
+.PHONY: compat-matrix
+compat-matrix:  ## Render the cross-generation matrix from the last run
+	python -m compat.render_matrix
