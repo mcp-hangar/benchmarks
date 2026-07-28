@@ -22,6 +22,53 @@ It compares four execution strategies:
 | S4 | Cold Start | Single-flight cold start deduplication |
 | S5 | Mixed Latency | Head-of-line blocking with fast/slow mix |
 | S6 | Agent Workflow | Realistic 3-step pipeline with dependencies |
+| S7 | Task In-Flight Ceiling | How many concurrent governed task follow-ups one process holds |
+
+### S7 — Task In-Flight Ceiling
+
+S1–S6 answer "how fast". S7 answers "how many at once", for the ADR-014 governed
+task relay, and it is the one scenario that reports a **limit** rather than a
+speedup.
+
+The relay dispatches every follow-up — ledger reads *and* the blocking upstream
+forward — through `asyncio.to_thread`. Nothing in `mcp_hangar` ever calls
+`loop.set_default_executor(...)`, so those land on CPython's stock pool, sized
+`min(32, os.cpu_count() + 4)`. Concurrency is therefore capped by a **CPU-derived
+thread count while the thing being waited on is network latency**.
+
+Measured, not extrapolated — the sweep was re-run at three forced pool widths:
+
+| Pool workers | Pod size | Sustained in-flight | Throughput ceiling |
+|---|---|---|---|
+| 6 | 2 vCPU | **6** | ~111 ops/s |
+| 8 | 4 vCPU | **8** | ~146 ops/s |
+| 22 | 18-core host | **16** (nearest level below 22) | ~372 ops/s |
+
+The knee lands exactly on the worker count. Past it nothing fails — work queues,
+and p99 grows one upstream round-trip per extra wave:
+
+```
+p99(N) ~= ceil(N / workers) * upstream_latency
+```
+
+Governance is not the bottleneck: `--mode relay` (real `GovernedTaskStore`,
+ownership check, digest guard, event publish) lands within ~2% of `--mode pool`
+(a bare `to_thread` sleep). The ledger work is microseconds; the pool is the
+whole story.
+
+```bash
+# Isolate the mechanism (no Hangar needed)
+uv run python -m src.runner task-ceiling --mode pool
+
+# Drive a real GovernedTaskStore (needs a 2.x core installed)
+uv run python -m src.runner task-ceiling --mode relay
+
+# Measure a 2 vCPU pod from any host
+uv run python -m src.runner task-ceiling --mode relay --workers 6
+```
+
+`--mode relay` requires the governed relay, which ships only on the 2.x line;
+against a 1.x install it fails with an explicit message rather than a stack trace.
 
 ## Quick Start
 

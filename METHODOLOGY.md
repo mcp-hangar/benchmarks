@@ -168,3 +168,56 @@ For most reliable results:
 - Disable CPU frequency scaling if possible
 - Run on a machine with minimal background load
 - Use `make full-benchmark` (100 runs) for publication
+
+## S7: Ceiling Measurement
+
+S7 differs from S1–S6 in what it reports and therefore in how it is measured.
+The other scenarios compare execution strategies at fixed width; S7 sweeps width
+and looks for the point where added concurrency stops buying throughput.
+
+### Percentiles
+
+S7 uses **nearest-rank** percentiles, not `numpy.percentile`. With a few hundred
+samples per level, linear interpolation reports latencies that were never
+observed — the wrong behaviour when the question is how bad the tail gets. Every
+number S7 prints is a measurement that actually happened.
+
+### Knee definition
+
+The knee is the highest concurrency whose p99 stays within 1.5x of the
+**single-wave floor** (one upstream round-trip). Below it every operation gets a
+worker immediately; above it operations queue and p99 jumps by a whole round-trip
+per wave.
+
+The comparison is deliberately against the floor and not against the model's own
+prediction. The prediction grows with concurrency by construction, so a ratio
+against it stays near 1.0 at every level — the first version of this code did
+exactly that and nominated the widest level swept (128) as the knee on a
+22-worker pool. The published ratio column is still measured-over-predicted, but
+it serves a different purpose: it identifies *whether the pool is the binding
+constraint*. Values near 1.0 across the sweep mean the queueing model explains
+the latency; a sustained excursion above it would mean something else is
+serialising too.
+
+### Warmup
+
+One narrow wave runs before recording. CPython creates pool threads lazily, so a
+cold pool charges thread-creation to the first operations — a cost that is not
+upstream latency and not part of the ceiling.
+
+### Pool width override
+
+`--workers N` installs a `ThreadPoolExecutor(max_workers=N)` as the loop's
+*default* executor. It must be the default slot specifically: the relay calls
+bare `asyncio.to_thread`, which consults nothing else. This is how pod sizes
+other than the benchmark host's are measured rather than extrapolated.
+
+### What S7 does not measure
+
+Not end-to-end HTTP. There is no gateway, transport or client in the frame —
+including them would fold connection handling and the streamable-HTTP session
+layer into a number whose purpose is to isolate the dispatch ceiling. The e2e
+counterpart lives in the core repo's `examples/task_upstream`.
+
+Not storage limits either. `GovernedTaskStore` is bounded by configured TTL/LRU
+caps and evicts deterministically; that is a set number, not a discovered one.
