@@ -25,6 +25,13 @@ from src.scenarios.s3_multi_provider import create_scenarios as s3_scenarios
 from src.scenarios.s4_cold_start import create_scenarios as s4_scenarios
 from src.scenarios.s5_mixed_latency import create_scenarios as s5_scenarios
 from src.scenarios.s6_agent_workflow import create_scenarios as s6_scenarios
+from src.task_ceiling import (
+    DEFAULT_CONCURRENCIES,
+    DEFAULT_UPSTREAM_MS,
+    default_pool_workers,
+    print_ceiling_summary,
+    run_task_ceiling,
+)
 from src.utils.environment import capture_environment
 
 console = Console()
@@ -133,6 +140,63 @@ def run(
     # Print summary report
     if results:
         generate_report(output)
+
+
+@cli.command("task-ceiling")
+@click.option(
+    "--mode",
+    type=click.Choice(["pool", "relay"]),
+    default="pool",
+    help="'pool' isolates the to_thread mechanism; 'relay' drives a real GovernedTaskStore",
+)
+@click.option("--ops", default=200, help="Operations per concurrency level")
+@click.option("--upstream-ms", default=DEFAULT_UPSTREAM_MS, help="Simulated upstream round-trip (ms)")
+@click.option("--concurrency", "-c", multiple=True, type=int, help="Override the swept levels")
+@click.option(
+    "--workers",
+    type=int,
+    default=None,
+    help="Force the default executor width, e.g. 6 to measure a 2 vCPU pod instead of extrapolating",
+)
+@click.option("--output", "-o", default="results/raw", help="Output directory")
+def task_ceiling(
+    mode: str,
+    ops: int,
+    upstream_ms: float,
+    concurrency: tuple[int, ...],
+    workers: int | None,
+    output: str,
+) -> None:
+    """Measure how many in-flight governed task follow-ups one process sustains (S7)."""
+    levels = sorted(concurrency) if concurrency else DEFAULT_CONCURRENCIES
+    effective_workers = workers if workers is not None else default_pool_workers()
+
+    console.print(
+        Panel(
+            f"[bold]S7 Task In-Flight Ceiling[/]\n\n"
+            f"Mode: {mode}\n"
+            f"Default executor workers: {effective_workers}"
+            + (" [yellow](forced)[/]" if workers is not None else "")
+            + "\n"
+            f"Upstream latency: {upstream_ms:.0f} ms\n"
+            f"Ops per level: {ops}\n"
+            f"Levels: {', '.join(str(level) for level in levels)}",
+            title="Configuration",
+            border_style="cyan",
+        )
+    )
+
+    result = asyncio.run(
+        run_task_ceiling(
+            mode=mode,
+            concurrencies=levels,
+            ops_per_level=ops,
+            upstream_ms=upstream_ms,
+            output_dir=output,
+            workers=workers,
+        )
+    )
+    print_ceiling_summary(result)
 
 
 @cli.command()
