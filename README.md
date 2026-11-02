@@ -92,7 +92,7 @@ If you're working against a local (e.g. from-main) build of `mcp-hangar`, use `S
 
 ```bash
 # Install hangar from local checkout
-uv pip install -e ../mcp-hangar/packages/core
+uv pip install -e ../mcp-hangar
 
 # Install remaining dependencies without touching mcp-hangar
 make setup SKIP_HANGAR=1
