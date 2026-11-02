@@ -38,7 +38,7 @@ make clean                        # Remove all results and charts
 
 ## SKIP_HANGAR Flag
 
-When developing against a local mcp-hangar build (e.g., `uv pip install -e ../mcp-hangar/packages/core`), add `SKIP_HANGAR=1` to **all** make commands:
+When developing against a local mcp-hangar build (e.g., `uv pip install -e ../mcp-hangar`), add `SKIP_HANGAR=1` to **all** make commands:
 
 - `make setup SKIP_HANGAR=1` → `uv sync --inexact --no-install-package mcp-hangar` (installs deps, keeps local hangar)
 - All other targets → `uv run --no-sync` (skips auto-sync that would overwrite local hangar)
